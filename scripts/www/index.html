@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>任务日志 · Quest Log</title>
+<style>
+  :root{
+    --bg:#0b0e18; --panel:#181c30; --line:#2a2f4a;
+    --text:#e8ecff; --muted:#8b93b8;
+    --cyan:#4dd0e1; --gold:#ffd166; --green:#4ade80;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:radial-gradient(1200px 600px at 50% -10%,#1b2450 0%,#0b0e18 60%) no-repeat,#0b0e18;
+    color:var(--text); min-height:100vh; padding:24px 16px 80px;
+  }
+  .app{max-width:720px;margin:0 auto;}
+
+  /* ---------- 顶部 HUD ---------- */
+  .hud{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;}
+  .brand h1{font-size:22px;letter-spacing:1px;}
+  .brand .sub{font-size:12px;color:var(--muted);margin-top:3px;}
+  .lv-box{display:flex;align-items:center;gap:10px;}
+  .lv-badge{
+    font-weight:800;font-size:14px;color:#0b0e18;
+    background:linear-gradient(135deg,#ffd166,#ff9f43);
+    padding:6px 12px;border-radius:10px;
+    box-shadow:0 0 16px rgba(255,209,102,.35);
+  }
+  .lv-bar{width:120px;height:8px;border-radius:999px;background:#0b0e18;border:1px solid var(--line);overflow:hidden;}
+  .lv-bar>div{height:100%;width:0;background:linear-gradient(90deg,#ffd166,#ff9f43);transition:width .5s ease;}
+  .lv-text{font-size:11px;color:var(--muted);white-space:nowrap;}
+
+  /* ---------- 总进度 ---------- */
+  .overall{
+    background:linear-gradient(180deg,#1b2038,#151a2c);
+    border:1px solid var(--line);border-radius:16px;
+    padding:16px;margin-bottom:16px;
+  }
+  .overall-head{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);margin-bottom:8px;}
+  #overallPct{color:var(--cyan);font-weight:800;font-size:17px;}
+  .bar{height:16px;border-radius:999px;background:#0a0d17;border:1px solid var(--line);overflow:hidden;position:relative;}
+  .bar-fill{
+    height:100%;width:0;border-radius:999px;
+    background:linear-gradient(90deg,#22d3ee,#6366f1,#a78bfa);
+    box-shadow:0 0 16px rgba(99,102,241,.6);
+    transition:width .6s cubic-bezier(.22,1,.36,1);
+    position:relative;overflow:hidden;
+  }
+  .bar-fill::after{
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);
+    animation:shine 2.2s infinite;
+  }
+  @keyframes shine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+  .overall-foot{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:8px;}
+
+  /* ---------- 添加表单 ---------- */
+  .add-form{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+  .add-form input[type=text]{
+    flex:1;min-width:160px;background:#141829;border:1px solid var(--line);
+    color:var(--text);padding:12px 14px;border-radius:10px;font-size:14px;outline:none;
+    transition:border-color .2s,box-shadow .2s;
+  }
+  .add-form input[type=text]:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(34,211,238,.15);}
+  .exp-input{display:flex;align-items:center;background:#141829;border:1px solid var(--line);border-radius:10px;padding:0 10px;}
+  .exp-input input{width:58px;background:transparent;border:none;color:var(--gold);font-weight:700;font-size:14px;outline:none;padding:12px 0;}
+  .exp-input span{font-size:11px;color:var(--muted);}
+  .add-form button[type=submit]{
+    background:linear-gradient(135deg,#22d3ee,#6366f1);border:none;color:#fff;
+    font-weight:700;font-size:14px;padding:12px 20px;border-radius:10px;cursor:pointer;
+    box-shadow:0 4px 16px rgba(99,102,241,.35);transition:transform .15s,box-shadow .2s;
+  }
+  .add-form button[type=submit]:hover{transform:translateY(-1px);box-shadow:0 6px 22px rgba(99,102,241,.55);}
+  .add-form button[type=submit]:active{transform:translateY(0);}
+
+  /* ---------- 任务列表 ---------- */
+  .task-list{display:flex;flex-direction:column;gap:10px;}
+  .task{
+    background:linear-gradient(180deg,#1a1f36,#151a2c);
+    border:1px solid var(--line);border-radius:14px;padding:12px 14px;
+    transition:border-color .2s,opacity .3s,transform .2s;
+  }
+  .task:hover{border-color:#39406b;}
+  .task.done{opacity:.55;}
+  .task-row{display:flex;align-items:center;gap:12px;}
+  .task-main{flex:1;min-width:0;}
+  .task-title{font-size:15px;font-weight:600;word-break:break-word;}
+  .task.done .task-title{text-decoration:line-through;color:var(--muted);}
+  .task-meta{font-size:11px;color:var(--muted);margin-top:3px;}
+
+  .check{
+    width:24px;height:24px;border-radius:7px;flex-shrink:0;
+    border:2px solid #3b4370;cursor:pointer;
+    display:grid;place-items:center;font-size:13px;font-weight:900;color:#0b0e18;
+    transition:all .2s;user-select:none;
+  }
+  .check:hover{border-color:var(--cyan);box-shadow:0 0 8px rgba(34,211,238,.4);}
+  .check.on{
+    background:linear-gradient(135deg,#22d3ee,#4ade80);
+    border-color:transparent;box-shadow:0 0 12px rgba(74,222,128,.6);
+  }
+  .check.small{width:18px;height:18px;border-radius:5px;font-size:10px;border-width:1.5px;}
+
+  .exp-tag{
+    font-size:12px;color:var(--gold);white-space:nowrap;
+    background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.25);
+    padding:2px 8px;border-radius:999px;
+  }
+  .exp-tag.small{font-size:11px;padding:1px 7px;}
+
+  .icon-btn{
+    width:28px;height:28px;flex-shrink:0;border-radius:8px;cursor:pointer;
+    background:transparent;border:1px solid var(--line);color:var(--muted);
+    display:grid;place-items:center;font-size:15px;line-height:1;transition:all .15s;
+  }
+  .icon-btn:hover{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.08);}
+  .icon-btn.danger:hover{color:#f87171;border-color:#f87171;background:rgba(248,113,113,.1);}
+
+  /* ---------- 子任务 ---------- */
+  .subtasks{display:flex;flex-direction:column;gap:6px;margin:10px 0 0 36px;}
+  .subtasks:empty{display:none;}
+  .subtask{
+    display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:10px;
+    background:rgba(255,255,255,.025);border-left:2px solid #2f3557;transition:all .2s;
+  }
+  .subtask:hover{background:rgba(255,255,255,.05);}
+  .subtask.done{opacity:.5;}
+  .subtask.done .subtask-title{text-decoration:line-through;color:var(--muted);}
+  .subtask-title{flex:1;font-size:13.5px;word-break:break-word;}
+
+  /* ---------- 内联添加 ---------- */
+  .inline-add{display:flex;gap:6px;padding:6px 0;flex-wrap:wrap;}
+  .inline-add input{
+    background:#0f1322;border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:7px 10px;font-size:13px;outline:none;
+  }
+  .inline-add input:focus{border-color:var(--cyan);}
+  .inline-add .ia-title{flex:1;min-width:110px;}
+  .inline-add .ia-exp{width:62px;color:var(--gold);}
+  .inline-add button{border:none;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;font-weight:600;}
+  .inline-add .ia-ok{background:linear-gradient(135deg,#22d3ee,#6366f1);color:#fff;}
+  .inline-add .ia-cancel{background:#232840;color:var(--muted);}
+
+  /* ---------- 空状态 / 底部 ---------- */
+  .empty{text-align:center;color:var(--muted);font-size:14px;padding:40px 0;}
+  .foot{margin-top:24px;text-align:center;}
+  .foot button{
+    background:transparent;border:1px solid var(--line);color:var(--muted);
+    padding:8px 16px;border-radius:10px;font-size:13px;cursor:pointer;transition:all .2s;
+  }
+  .foot button:hover{color:#f87171;border-color:#f87171;}
+
+  /* ---------- 特效 ---------- */
+  .float-exp{
+    position:fixed;transform:translate(-50%,0);pointer-events:none;z-index:999;
+    font-weight:900;font-size:17px;color:var(--gold);
+    text-shadow:0 0 12px rgba(255,209,102,.9);
+    transition:transform .9s cubic-bezier(.22,1,.36,1),opacity .9s;
+    opacity:1;
+  }
+  .float-exp.go{transform:translate(-50%,-70px);opacity:0;}
+
+  .toast{
+    position:fixed;left:50%;top:24px;transform:translate(-50%,-140%);
+    background:linear-gradient(135deg,#ffd166,#ff9f43);color:#0b0e18;
+    font-weight:800;font-size:14px;padding:12px 22px;border-radius:12px;
+    box-shadow:0 8px 30px rgba(255,159,67,.5);z-index:1000;
+    transition:transform .45s cubic-bezier(.22,1,.36,1);
+  }
+  .toast.show{transform:translate(-50%,0);}
+
+  @media(max-width:480px){
+    .hud{flex-direction:column;align-items:flex-start;}
+    .lv-bar{width:90px;}
+    .add-form button[type=submit]{flex:1;}
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- HUD -->
+  <header class="hud">
+    <div class="brand">
+      <h1>⚔ 任务日志</h1>
+      <p class="sub">完成每一项，积累你的经验</p>
+    </div>
+    <div class="lv-box">
+      <div class="lv-badge">Lv.<span id="lvNum">1</span></div>
+      <div class="lv-bar"><div id="lvFill"></div></div>
+      <div class="lv-text"><span id="curExp">0</span>/100 EXP</div>
+    </div>
+  </header>
+
+  <!-- 总进度 -->
+  <section class="overall">
+    <div class="overall-head">
+      <span>总进度</span>
+      <span id="overallPct">0%</span>
+    </div>
+    <div class="bar"><div class="bar-fill" id="overallFill"></div></div>
+    <div class="overall-foot">
+      <span id="taskCount">0 / 0 个任务完成</span>
+      <span id="expInfo">0 / 0 EXP</span>
+    </div>
+  </section>
+
+  <!-- 添加任务 -->
+  <form class="add-form" id="addForm">
+    <input type="text" id="newTitle" placeholder="输入新的任务…" autocomplete="off" required>
+    <div class="exp-input">
+      <input type="number" id="newExp" value="50" min="1" max="9999">
+      <span>EXP</span>
+    </div>
+    <button type="submit">＋ 添加任务</button>
+  </form>
+
+  <!-- 任务列表 -->
+  <main id="taskList" class="task-list"></main>
+  <div class="empty" id="empty">还没有任务，先添加一个吧 ✨</div>
+
+  <footer class="foot">
+    <button id="clearDone">清除已完成任务</button>
+  </footer>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* ==================== 数据层 ==================== */
+const KEY = 'questlog_v1';
+let state = { tasks: [] };
+let lastLevel = 1;
+
+const $ = id => document.getElementById(id);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) state = JSON.parse(raw);
+  } catch (e) { state = { tasks: [] }; }
+  if (!Array.isArray(state.tasks)) state.tasks = [];
+  state.tasks.forEach(t => {
+    if (!Array.isArray(t.subtasks)) t.subtasks = [];
+    t.exp = Number(t.exp) || 10;
+    t.subtasks.forEach(s => { s.exp = Number(s.exp) || 5; });
+  });
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+
+/* ==================== 计算层 ==================== */
+function isDone(t) {
+  if (t.subtasks.length === 0) return !!t.done;
+  return t.subtasks.every(s => s.done);
+}
+function totalExp() {
+  let sum = 0;
+  state.tasks.forEach(t => {
+    sum += t.exp || 0;
+    t.subtasks.forEach(s => sum += s.exp || 0);
+  });
+  return sum;
+}
+function earnedExp() {
+  let sum = 0;
+  state.tasks.forEach(t => {
+    if (t.subtasks.length === 0) {
+      if (t.done) sum += t.exp || 0;
+    } else {
+      t.subtasks.forEach(s => { if (s.done) sum += s.exp || 0; });
+      if (t.subtasks.every(s => s.done)) sum += t.exp || 0;
+    }
+  });
+  return sum;
+}
+
+/* ==================== 音效 & 特效 ==================== */
+let audioCtx = null;
+function beep(freq = 880, dur = 0.09, type = 'sine', vol = 0.07) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    o.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.start();
+    o.stop(audioCtx.currentTime + dur);
+  } catch (e) { /* 静默失败 */ }
+}
+function levelUpSound() {
+  beep(660, 0.1); setTimeout(() => beep(880, 0.1), 90); setTimeout(() => beep(1180, 0.2), 180);
+}
+function floatExp(x, y, text, color) {
+  const el = document.createElement('div');
+  el.className = 'float-exp';
+  el.textContent = text;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  if (color) el.style.color = color;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('go'));
+  setTimeout(() => el.remove(), 1000);
+}
+let toastTimer = null;
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ==================== 渲染层 ==================== */
+function buildTask(t) {
+  const done = isDone(t);
+  const subs = t.subtasks;
+  const doneSubs = subs.filter(s => s.done).length;
+
+  const el = document.createElement('div');
+  el.className = 'task' + (done ? ' done' : '');
+  el.dataset.id = t.id;
+
+  el.innerHTML = `
+    <div class="task-row">
+      <div class="check ${done ? 'on' : ''}" data-act="toggle">${done ? '✓' : ''}</div>
+      <div class="task-main">
+        <div class="task-title">${esc(t.title)}</div>
+        ${subs.length ? `<div class="task-meta">${doneSubs} / ${subs.length} 子任务</div>` : ''}
+      </div>
+      <div class="exp-tag">+${t.exp} EXP</div>
+      <button class="icon-btn" data-act="addsub" title="添加子任务">＋</button>
+      <button class="icon-btn danger" data-act="del" title="删除任务">×</button>
+    </div>
+    <div class="subtasks">
+      ${subs.map(s => `
+        <div class="subtask ${s.done ? 'done' : ''}" data-subid="${s.id}">
+          <div class="check small ${s.done ? 'on' : ''}" data-act="togglesub">${s.done ? '✓' : ''}</div>
+          <div class="subtask-title">${esc(s.title)}</div>
+          <div class="exp-tag small">+${s.exp}</div>
+          <button class="icon-btn danger" data-act="delsub" title="删除子任务">×</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  return el;
+}
+
+function render() {
+  const list = $('taskList');
+  list.innerHTML = '';
+  state.tasks.forEach(t => list.appendChild(buildTask(t)));
+  $('empty').style.display = state.tasks.length ? 'none' : 'block';
+  updateHUD();
+}
+
+function updateHUD() {
+  const total = totalExp();
+  const earned = earnedExp();
+  const pct = total > 0 ? (earned / total * 100) : 0;
+
+  $('overallFill').style.width = pct.toFixed(1) + '%';
+  $('overallPct').textContent = Math.round(pct) + '%';
+
+  // 等级：每 100 EXP 升 1 级
+  const lv = Math.floor(earned / 100) + 1;
+  const cur = earned % 100;
+  $('lvNum').textContent = lv;
+  $('lvFill').style.width = cur + '%';
+  $('curExp').textContent = cur;
+
+  // 任务计数
+  let doneCount = 0, totalCount = 0;
+  state.tasks.forEach(t => {
+    totalCount++;
+    if (isDone(t)) doneCount++;
+    t.subtasks.forEach(s => { totalCount++; if (s.done) doneCount++; });
+  });
+  $('taskCount').textContent = `${doneCount} / ${totalCount} 个任务完成`;
+  $('expInfo').textContent = `${earned} / ${total} EXP`;
+
+  // 升级检测
+  if (lv > lastLevel) {
+    toast(`🎉 升级！当前等级 Lv.${lv}`);
+    levelUpSound();
+  }
+  lastLevel = lv;
+}
+
+/* ==================== 交互层 ==================== */
+function showInlineAdd(taskEl) {
+  const box = taskEl.querySelector('.subtasks');
+  if (box.querySelector('.inline-add')) {
+    box.querySelector('.inline-add .ia-title').focus();
+    return;
+  }
+  const div = document.createElement('div');
+  div.className = 'inline-add';
+  div.innerHTML = `
+    <input class="ia-title" type="text" placeholder="子任务名称…">
+    <input class="ia-exp" type="number" value="10" min="1" max="9999">
+    <button class="ia-ok">确定</button>
+    <button class="ia-cancel">取消</button>
+  `;
+  box.appendChild(div);
+
+  const titleInput = div.querySelector('.ia-title');
+  titleInput.focus();
+
+  const submit = () => {
+    const title = titleInput.value.trim();
+    if (!title) { div.remove(); return; }
+    const exp = Math.max(1, parseInt(div.querySelector('.ia-exp').value, 10) || 10);
+    const task = state.tasks.find(t => t.id === taskEl.dataset.id);
+    if (!task) return;
+    task.subtasks.push({ id: uid(), title, exp, done: false });
+    beep(700, 0.05);
+    save(); render();
+  };
+
+  div.querySelector('.ia-ok').addEventListener('click', submit);
+  div.querySelector('.ia-cancel').addEventListener('click', () => div.remove());
+  titleInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submit();
+    if (e.key === 'Escape') div.remove();
+  });
+}
+
+$('taskList').addEventListener('click', e => {
+  const btn = e.target.closest('[data-act]');
+  if (!btn) return;
+
+  const act = btn.dataset.act;
+  const taskEl = btn.closest('.task');
+  const task = state.tasks.find(t => t.id === taskEl.dataset.id);
+  if (!task) return;
+
+  const rect = btn.getBoundingClientRect();
+
+  if (act === 'addsub') {
+    showInlineAdd(taskEl);
+    return;
+  }
+
+  if (act === 'toggle') {
+    if (task.subtasks.length > 0) {
+      const allDone = task.subtasks.every(s => s.done);
+      const willDone = !allDone;
+      task.subtasks.forEach(s => s.done = willDone);
+      if (willDone) {
+        const gain = task.subtasks.reduce((a, s) => a + s.exp, 0) + task.exp;
+        floatExp(rect.left + 12, rect.top, `+${gain} EXP`);
+        beep(880); setTimeout(() => beep(1180, 0.12), 80);
+      } else {
+        beep(320, 0.08, 'triangle', 0.05);
+      }
+    } else {
+      task.done = !task.done;
+      if (task.done) {
+        floatExp(rect.left + 12, rect.top, `+${task.exp} EXP`);
+        beep(880); setTimeout(() => beep(1180, 0.12), 80);
+      } else {
+        beep(320, 0.08, 'triangle', 0.05);
+      }
+    }
+  }
+
+  else if (act === 'del') {
+    if (task.subtasks.length && !confirm(`删除「${task.title}」及其 ${task.subtasks.length} 个子任务？`)) return;
+    state.tasks = state.tasks.filter(t => t !== task);
+    beep(300, 0.1, 'sawtooth', 0.05);
+  }
+
+  else if (act === 'togglesub') {
+    const subEl = btn.closest('.subtask');
+    const sub = task.subtasks.find(s => s.id === subEl.dataset.subid);
+    if (!sub) return;
+    sub.done = !sub.done;
+    if (sub.done) {
+      floatExp(rect.left + 10, rect.top, `+${sub.exp} EXP`);
+      beep(880);
+    } else {
+      beep(320, 0.08, 'triangle', 0.05);
+    }
+  }
+
+  else if (act === 'delsub') {
+    const subEl = btn.closest('.subtask');
+    task.subtasks = task.subtasks.filter(s => s.id !== subEl.dataset.subid);
+    beep(300, 0.08, 'sawtooth', 0.05);
+  }
+
+  save();
+  render();
+});
+
+/* 添加主任务 */
+$('addForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const title = $('newTitle').value.trim();
+  if (!title) return;
+  const exp = Math.max(1, parseInt($('newExp').value, 10) || 50);
+  state.tasks.push({ id: uid(), title, exp, done: false, subtasks: [] });
+  $('newTitle').value = '';
+  $('newTitle').focus();
+  beep(660, 0.06);
+  save(); render();
+});
+
+/* 清除已完成 */
+$('clearDone').addEventListener('click', () => {
+  const left = state.tasks.filter(t => !isDone(t));
+  if (left.length === state.tasks.length) { toast('暂时没有已完成的任务'); return; }
+  state.tasks = left;
+  beep(500, 0.1, 'triangle', 0.06);
+  save(); render();
+});
+
+/* ==================== 启动 ==================== */
+load();
+lastLevel = Math.floor(earnedExp() / 100) + 1;  // 避免刷新时误触发升级提示
+render();
+</script>
+</body>
+</html>
